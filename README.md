@@ -5,11 +5,11 @@ request. Contexts are:
 
 * Math environment
 * File name environment (e.g., in \input{|})
-* Bibliography environment (e.g., in \cite{|})
+* Cite environment (e.g., in \cite{|})
 * ...
 
-The plugin does not do much more than return information on the current environment when
-`vim-latex-contex#get_context()` is called.
+The plugin does not do much more than return information on the current environment when the
+VLXgetContext command is called.
 
 This may be usefull in combination with other plugins/functions e.g., expanding math snippets only
 in a math environment, triggering different omnifuncs etc.
