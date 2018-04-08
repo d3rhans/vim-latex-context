@@ -14,14 +14,41 @@ let g:loaded_vim_latex_context = 1
 
 command! -nargs=0 -buffer VLXgetContext call s:VLXgetContext()
 
-function! s:VLXgetCiteContext()
-    " TODO: Assumption is, that a cite command does not span multiple lines,
+function! s:getLineContext()
+    " TODO: Assumption is, that a command does not span multiple lines,
     " this needs to be extended to increase the search space (without parsing the
     " full file)
     let line = getline('.')
     let pos = getpos('.')[2]
     let context_left = strcharpart(line, 0, pos-1)
     let context_right = strcharpart(line, pos-1)
+
+    return [ context_left, context_right ]
+endfunction
+
+function! s:getCommandArg(context_left, context_right)
+        let pattern_left  = '{\([^{}]*\)$'
+        let pattern_right = '^\([^{}]*\)}'
+
+        let left_result = matchlist(a:context_left, pattern_left)
+        let right_result = matchlist(a:context_right, pattern_right)
+
+        let content_left = ''
+        if !empty(left_result)
+            let content_left = left_result[1]
+        endif
+
+        let content_right = ''
+        if !empty(right_result)
+            let content_right = right_result[1]
+        endif
+
+        return content_left . content_right
+endfunction
+
+function! s:VLXgetCiteContext()
+
+    let [ context_left, context_right ] = s:getLineContext()
 
     " TODO: Considering all statements of the form \*cite*{} may be a bit to broad.
     " Regexps are so much fun... not. Matches \*cite*a]{ where the a] is optional or can occur
@@ -32,20 +59,7 @@ function! s:VLXgetCiteContext()
     if empty(result)
         return { 'cite_context': 0 }
     else
-        let cite_content_left = ''
-
-        if len(result) > 3
-            let cite_content_left = result[3]
-        endif
-        
-        let ccr_result = matchlist(context_right, '^\([^{}]*\)}')
-
-        let cite_content_right = ''
-        if !empty(ccr_result)
-            let cite_content_right = ccr_result[1]
-        endif
-
-        let cite_content = cite_content_left . cite_content_right
+        let cite_content = s:getCommandArg(context_left, context_right)
 
         return { 'cite_context': 1, 'cite_command': result[1], 'cite_content': cite_content }
     endif
