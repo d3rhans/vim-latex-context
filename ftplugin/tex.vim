@@ -3,10 +3,10 @@
 " License: GPLv3
 " URL: https://github.com/d3rhans/vim-latex-context
 
-let s:save_cpo = &cpo
-set cpo&vim
+let s:save_cpo = &cpoptions
+set cpoptions&vim
 
-if exists("g:loaded_vim_latex_context")
+if exists('g:loaded_vim_latex_context')
   finish                                           
 endif
 
@@ -18,73 +18,91 @@ function! s:getLineContext()
     " TODO: Assumption is, that a command does not span multiple lines,
     " this needs to be extended to increase the search space (without parsing the
     " full file)
-    let line = getline('.')
-    let pos = getpos('.')[2]
-    let context_left = strcharpart(line, 0, pos-1)
-    let context_right = strcharpart(line, pos-1)
+    let l:line = getline('.')
+    let l:pos = getpos('.')[2]
+    let l:context_left = strcharpart(l:line, 0, l:pos-1)
+    let l:context_right = strcharpart(l:line, l:pos-1)
 
-    return [ context_left, context_right ]
+    return [ l:context_left, l:context_right ]
 endfunction
 
 function! s:getCommandArg(context_left, context_right)
-        let pattern_left  = '{\([^{}]*\)$'
-        let pattern_right = '^\([^{}]*\)}'
+        let l:pattern_left  = '{\([^{}]*\)$'
+        let l:pattern_right = '^\([^{}]*\)}'
 
-        let left_result = matchlist(a:context_left, pattern_left)
-        let right_result = matchlist(a:context_right, pattern_right)
+        let l:left_result = matchlist(a:context_left, l:pattern_left)
+        let l:right_result = matchlist(a:context_right, l:pattern_right)
 
-        let content_left = ''
-        if !empty(left_result)
-            let content_left = left_result[1]
+        let l:arg_left = ''
+        if !empty(l:left_result)
+            let l:arg_left = l:left_result[1]
         endif
 
-        let content_right = ''
-        if !empty(right_result)
-            let content_right = right_result[1]
+        let l:arg_right = ''
+        if !empty(l:right_result)
+            let l:arg_right = l:right_result[1]
         endif
 
-        return content_left . content_right
+        return l:arg_left . l:arg_right
+endfunction
+
+function! s:getCommandContext(patterns)
+    let [ l:context_left, l:context_right ] = s:getLineContext()
+    let l:arg = ''
+    let l:result = []
+
+    for l:pattern in a:patterns
+        let l:result = matchlist(l:context_left, l:pattern)
+        
+        if !empty(l:result)
+            let l:arg = s:getCommandArg(l:context_left, l:context_right)
+            break
+        endif
+    endfor
+
+    return [ l:result, l:arg ]
 endfunction
 
 function! s:VLXgetCiteContext()
+    let l:cite_pattern = [ '\\\(\a*cite\a*\)\(\[[^\[\]]\+\]\)*{\([^{}]*\)$' ]
+    let [ l:result, l:cite_arg ] = s:getCommandContext(l:cite_pattern)
 
-    let [ context_left, context_right ] = s:getLineContext()
-
-    " TODO: Considering all statements of the form \*cite*{} may be a bit to broad.
-    " Regexps are so much fun... not. Matches \*cite*a]{ where the a] is optional or can occur
-    " multiple times... Returns the citecommand as first submatch
-    let test_pattern = '\\\(\a*cite\a*\)\(\[[^\[\]]\+\]\)*{\([^{}]*\)$'
-    let result = matchlist(context_left, test_pattern)
-
-    if empty(result)
+    if empty(l:result)
         return { 'cite_context': 0 }
     else
-        let cite_content = s:getCommandArg(context_left, context_right)
-
-        return { 'cite_context': 1, 'cite_command': result[1], 'cite_content': cite_content }
+        return { 'cite_context': 1, 'cite_command': l:result[1], 'cite_arg': l:cite_arg }
     endif
 endfunction
 
 function! s:VLXgetFileContext()
-    " TODO: Assumption is, that a file input/include command does not span multiple lines,
-    " this needs to be extended to increase the search space (without parsing the
-    " full file)
-    let line = getline('.')
-    let pos = getpos('.')[2]
-    let context = strcharpart(line, 0, pos-1)
-
-    let patterns = [ 
+    let [ l:context_left, l:context_right ] = s:getLineContext()
+    let l:patterns = [ 
                 \ '\\\(\includegraphics\)\(\[[^\[\]]\+\]\)\{,1}{[^{}]*$',
                 \ '\\\(\includeonly\){[^{}]*$',
                 \ '\\\(\input\){[^{}]*$',
                 \ '\\\(\include\){[^{}]*$' ]
+
+    let [ l:result, l:file_arg ] = s:getCommandContext(l:patterns)
+
+    if empty(l:result)
+        return { 'file_context': 0 }
+    else
+        return { 'file_context': 1, 'file_command': l:result[1], 'file_arg': l:file_arg }
+    endif
 endfunction
 
 function! s:VLXgetContext()
-    let cite_context = s:VLXgetCiteContext()
-    
-    echo cite_context
+    let l:cite_context = s:VLXgetCiteContext()
+    let l:file_context = s:VLXgetFileContext()
+
+    if l:cite_context['cite_context']
+        echo l:cite_context
+    elseif l:file_context['file_context']
+        echo l:file_context
+    else
+        echo 'Nope'
+    endif
 endfunction
 
-let &cpo = s:save_cpo
+let &cpoptions = s:save_cpo
 unlet s:save_cpo
